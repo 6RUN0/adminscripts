@@ -1,0 +1,134 @@
+#!/bin/sh -
+
+##
+# Dafault options
+DEFAULT_BACKUP_NAME="backup"
+DEFAULT_BACKUP_FILES="/var/www"
+
+DEFAULT_COMPRESS_CMD=`which tar`
+DEFAULT_COMPRESS_FLAGS="-czf"
+DEFAULT_COMPRESS_SUFFIX=".tar.gz"
+
+DEFAULT_MYSQLDUMP_CMD=`which mysqldump`
+DEFAULT_MYSQLDUMP_FLAGS="--opt --all-databases"
+DEFAULT_MYSQLDUMP_SUFFIX=".sql"
+
+DEFAULT_CRYPT_CMD=`which openssl`
+DEFAULT_CRYPT_SUFFIX=".dat"
+DEFAULT_CRYPT_PASSWORD="secret"
+DEFAULT_CRYPT_FLAGS="enc -aes-256-cbc -e"
+
+DEFAULT_UPLOAD_CMD=`which curl`
+DEFAULT_UPLOAD_FLAGS="-u username:password -T"
+DEFAULT_UPLOAD_URL="https://webdav.yandex.ru/backup/"
+
+help() {
+cat <<EOF
+usage: ${0} config
+       ${0} config1 config2 ... configN
+       ${0} *.conf?g
+
+example config:
+
+## variable        ## default value
+
+backup_files=      ## ${DEFAULT_BACKUP_FILES}
+backup_name=       ## ${DEFAULT_BACKUP_NAME}
+
+compress_cmd=      ## ${DEFAULT_COMPRESS_CMD}
+compress_flags=    ## ${DEFAULT_COMPRESS_FLAGS}
+compress_suffix=   ## ${DEFAULT_COMPRESS_SUFFIX}
+
+mysqldump_cmd=     ## ${DEFAULT_MYSQLDUMP_CMD}
+mysqldump_flags=   ## ${DEFAULT_MYSQLDUMP_FLAGS}
+mysqldump_suffix=  ## ${DEFAULT_MYSQLDUMP_SUFFIX}
+
+crypt_cmd=         ## ${DEFAULT_CRYPT_CMD}
+crypt_suffix=      ## ${DEFAULT_CRYPT_SUFFIX}
+crypt_password=    ## ${DEFAULT_CRYPT_PASSWORD}
+crypt_flags=       ## ${DEFAULT_CRYPT_FLAGS}
+
+upload_cmd=        ## ${DEFAULT_UPLOAD_CMD}
+upload_flags=      ## ${DEFAULT_UPLOAD_FLAGS}
+upload_url=        ## ${DEFAULT_UPLOAD_URL}
+EOF
+}
+
+if [ $# -eq 0 ]; then
+  help
+  exit 1
+fi
+
+for config in ${@}; do
+	if [ -r ${config} ]; then
+    . ${config}
+    if [ -z "${backup_name}" ]; then
+      backup_name=${DEFAULT_BACKUP_NAME}
+    fi
+    if [ -z "${backup_files}" ]; then
+      backup_files=${DEFAULT_BACKUP_FILES}
+    fi
+    if [ -z "${mysqldump_cmd}" ]; then
+      mysqldump_cmd=${DEFAULT_MYSQLDUMP_CMD}
+    fi
+    if [ ! -x "${mysqldump_cmd}" ]; then
+      echo "File ${mysqldump_cmd} not found"
+      exit 1
+    fi
+    if [ -z "${mysqldump_flags}" ]; then
+      mysqldump_flags=${DEFAULT_MYSQLDUMP_FLAGS}
+    fi
+    if [ -z "${mysqldump_suffix}" ]; then
+      mysqldump_suffix=${DEFAULT_MYSQLDUMP_SUFFIX}
+    fi
+    if [ -z "${compress_cmd}" ]; then
+      compress_cmd=${DEFAULT_COMPRESS_CMD}
+    fi
+    if [ ! -x "${compress_cmd}" ]; then
+      echo "File ${compress_cmd} not found"
+      exit 1
+    fi
+    if [ -z "${compress_flags}" ]; then
+      compress_flags=${DEFAULT_COMPRESS_FLAGS}
+    fi
+    if [ -z "${compress_suffix}" ]; then
+      compress_suffix=${DEFAULT_COMPRESS_SUFFIX}
+    fi
+    if [ -z "${crypt_cmd}" ]; then
+      crypt_cmd=${DEFAULT_CRYPT_CMD}
+    fi
+    if [ ! -x "${crypt_cmd}" ]; then
+      echo "File ${crypt_cmd} not found"
+      exit 1
+    fi 
+    if [ -z "${crypt_suffix}" ]; then
+      crypt_suffix=${DEFAULT_CRYPT_SUFFIX}
+    fi
+    if [ -z "${crypt_password}" ]; then
+      crypt_password=${DEFAULT_CRYPT_PASSWORD}
+    fi
+    if [ -z "${crypt_flags}" ]; then
+      crypt_flags="enc -aes-256-cbc -e"
+    fi
+    if [ -z "${upload_cmd}" ]; then
+      upload_cmd=${DEFAULT_UPLOAD_CMD}
+    fi
+    if [ ! -x "${upload_cmd}" ]; then
+      echo "File ${upload_cmd} not found"
+      exit 1
+    fi 
+    if [ -z "${upload_flags}" ]; then
+      upload_flags=${DEFAULT_UPLOAD_FLAGS}
+    fi
+    if [ -z "${upload_url}" ]; then
+      upload_url=${DEFAULT_UPLOAD_URL}
+    fi
+    ${mysqldump_cmd} ${mysqldump_flags} > "${backup_name}${mysqldump_suffix}" && \
+    ${compress_cmd} ${compress_flags} "${backup_name}${compress_suffix}" "${backup_files}" "${backup_name}${mysqldump_suffix}" && \
+    ${crypt_cmd} ${crypt_flags} -in "${backup_name}${compress_suffix}" -out "${backup_name}${crypt_suffix}" -k "${crypt_password}" && \
+    ${upload_cmd} ${upload_flags} "${backup_name}${crypt_suffix}" ${upload_url}
+  else
+    echo "File ${config} not found"
+  fi
+done
+exit 0
