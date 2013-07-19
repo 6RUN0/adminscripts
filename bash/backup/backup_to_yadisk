@@ -60,7 +60,7 @@ if [ $# -eq 0 ]; then
 fi
 
 for config in ${@}; do
-	if [ -r ${config} ]; then
+  if [ -r ${config} ]; then
     . ${config}
     if [ -z "${backup_name}" ]; then
       backup_name=${DEFAULT_BACKUP_NAME}
@@ -126,7 +126,8 @@ for config in ${@}; do
     ${mysqldump_cmd} ${mysqldump_flags} > "${backup_name}${mysqldump_suffix}" && \
     ${compress_cmd} ${compress_flags} "${backup_name}${compress_suffix}" "${backup_files}" "${backup_name}${mysqldump_suffix}" && \
     ${crypt_cmd} ${crypt_flags} -in "${backup_name}${compress_suffix}" -out "${backup_name}${crypt_suffix}" -k "${crypt_password}" && \
-    ${upload_cmd} ${upload_flags} "${backup_name}${crypt_suffix}" ${upload_url}
+    ${upload_cmd} ${upload_flags} "${backup_name}${crypt_suffix}" ${upload_url} && \
+    rm -f "${backup_name}${crypt_suffix}" "${backup_name}${compress_suffix}" "${backup_name}${mysqldump_suffix}"
   else
     echo "File ${config} not found"
   fi
