@@ -1,25 +1,23 @@
 #!/bin/sh -
 
 ##
-# Dafault options
-DEFAULT_BACKUP_NAME="backup"
-DEFAULT_BACKUP_FILES="/var/www"
+# Default options
+DEFAULT_BACKUP_NAME="backup-`hostname`"
+DEFAULT_BACKUP_DIR="/var/www"
 
-DEFAULT_COMPRESS_CMD=`which tar`
+DEFAULT_COMPRESS_CMD="`which tar`"
 DEFAULT_COMPRESS_FLAGS="-czf"
 DEFAULT_COMPRESS_SUFFIX=".tar.gz"
 
-DEFAULT_MYSQLDUMP_CMD=`which mysqldump`
+DEFAULT_MYSQLDUMP_CMD="`which mysqldump`"
 DEFAULT_MYSQLDUMP_FLAGS="--opt --all-databases"
 DEFAULT_MYSQLDUMP_SUFFIX=".sql"
 
-DEFAULT_CRYPT_CMD=`which openssl`
+DEFAULT_CRYPT_CMD="`which openssl`"
 DEFAULT_CRYPT_SUFFIX=".dat"
-DEFAULT_CRYPT_PASSWORD="secret"
 DEFAULT_CRYPT_FLAGS="enc -aes-256-cbc -e"
 
-DEFAULT_UPLOAD_CMD=`which curl`
-DEFAULT_UPLOAD_FLAGS="-u username:password -T"
+DEFAULT_UPLOAD_CMD="`which curl`"
 DEFAULT_UPLOAD_URL="https://webdav.yandex.ru/backup/"
 
 help() {
@@ -30,27 +28,29 @@ usage: ${0} config
 
 example config:
 
-## variable        ## default value
-
-backup_files=      ## ${DEFAULT_BACKUP_FILES}
-backup_name=       ## ${DEFAULT_BACKUP_NAME}
-
-compress_cmd=      ## ${DEFAULT_COMPRESS_CMD}
-compress_flags=    ## ${DEFAULT_COMPRESS_FLAGS}
-compress_suffix=   ## ${DEFAULT_COMPRESS_SUFFIX}
-
-mysqldump_cmd=     ## ${DEFAULT_MYSQLDUMP_CMD}
-mysqldump_flags=   ## ${DEFAULT_MYSQLDUMP_FLAGS}
-mysqldump_suffix=  ## ${DEFAULT_MYSQLDUMP_SUFFIX}
-
-crypt_cmd=         ## ${DEFAULT_CRYPT_CMD}
-crypt_suffix=      ## ${DEFAULT_CRYPT_SUFFIX}
-crypt_password=    ## ${DEFAULT_CRYPT_PASSWORD}
-crypt_flags=       ## ${DEFAULT_CRYPT_FLAGS}
-
-upload_cmd=        ## ${DEFAULT_UPLOAD_CMD}
-upload_flags=      ## ${DEFAULT_UPLOAD_FLAGS}
-upload_url=        ## ${DEFAULT_UPLOAD_URL}
+#   variable          ##  default value
+                      #
+backup_dir=           # ${DEFAULT_BACKUP_DIR}
+backup_name=          # ${DEFAULT_BACKUP_NAME}
+                      #
+compress_cmd=         # ${DEFAULT_COMPRESS_CMD}
+compress_flags=       # ${DEFAULT_COMPRESS_FLAGS}
+compress_suffix=      # ${DEFAULT_COMPRESS_SUFFIX}
+                      #
+mysqldump_cmd=        # ${DEFAULT_MYSQLDUMP_CMD}
+mysqldump_flags=      # ${DEFAULT_MYSQLDUMP_FLAGS}
+mysqldump_suffix=     # ${DEFAULT_MYSQLDUMP_SUFFIX}
+                      #
+crypt_cmd=            # ${DEFAULT_CRYPT_CMD}
+crypt_suffix=         # ${DEFAULT_CRYPT_SUFFIX}
+crypt_password=       # REQURE
+crypt_flags=          # ${DEFAULT_CRYPT_FLAGS}
+                      #
+upload_cmd=           # ${DEFAULT_UPLOAD_CMD}
+upload_extra_flags=   # not set
+upload_username=      # REQURE
+upload_password=      # REQURE
+upload_url=           # ${DEFAULT_UPLOAD_URL}
 EOF
 }
 
@@ -59,21 +59,27 @@ if [ $# -eq 0 ]; then
   exit 1
 fi
 
-for config in ${@}; do
-  if [ -r ${config} ]; then
-    . ${config}
+error=0
+for config in "${@}"; do
+  if [ -r "${config}" ]; then
+    . "${config}"
     if [ -z "${backup_name}" ]; then
       backup_name=${DEFAULT_BACKUP_NAME}
     fi
-    if [ -z "${backup_files}" ]; then
-      backup_files=${DEFAULT_BACKUP_FILES}
+    if [ -z "${backup_dir}" ]; then
+      backup_dir=${DEFAULT_BACKUP_DIR}
     fi
+    if [ ! -d "${backup_dir}" ]; then
+      echo "Directory ${backup_dir} not exist"
+      error=1
+    fi
+
     if [ -z "${mysqldump_cmd}" ]; then
       mysqldump_cmd=${DEFAULT_MYSQLDUMP_CMD}
     fi
     if [ ! -x "${mysqldump_cmd}" ]; then
-      echo "File ${mysqldump_cmd} not found"
-      exit 1
+      echo "File ${mysqldump_cmd} not exist or not execute"
+      error=1
     fi
     if [ -z "${mysqldump_flags}" ]; then
       mysqldump_flags=${DEFAULT_MYSQLDUMP_FLAGS}
@@ -85,8 +91,8 @@ for config in ${@}; do
       compress_cmd=${DEFAULT_COMPRESS_CMD}
     fi
     if [ ! -x "${compress_cmd}" ]; then
-      echo "File ${compress_cmd} not found"
-      exit 1
+      echo "File ${compress_cmd} not exist or not execute"
+      error=1
     fi
     if [ -z "${compress_flags}" ]; then
       compress_flags=${DEFAULT_COMPRESS_FLAGS}
@@ -98,14 +104,15 @@ for config in ${@}; do
       crypt_cmd=${DEFAULT_CRYPT_CMD}
     fi
     if [ ! -x "${crypt_cmd}" ]; then
-      echo "File ${crypt_cmd} not found"
-      exit 1
+      echo "File ${crypt_cmd} not exits or not execute"
+      error=1
     fi 
     if [ -z "${crypt_suffix}" ]; then
       crypt_suffix=${DEFAULT_CRYPT_SUFFIX}
     fi
     if [ -z "${crypt_password}" ]; then
-      crypt_password=${DEFAULT_CRYPT_PASSWORD}
+      echo "Please enter a password to encrypt files (set variable crypt_password)"
+      error=1
     fi
     if [ -z "${crypt_flags}" ]; then
       crypt_flags="enc -aes-256-cbc -e"
@@ -114,22 +121,33 @@ for config in ${@}; do
       upload_cmd=${DEFAULT_UPLOAD_CMD}
     fi
     if [ ! -x "${upload_cmd}" ]; then
-      echo "File ${upload_cmd} not found"
-      exit 1
+      echo "File ${upload_cmd} not found or not execute"
+      error=1
     fi 
-    if [ -z "${upload_flags}" ]; then
-      upload_flags=${DEFAULT_UPLOAD_FLAGS}
+    if [ -z "${upload_username}" ]; then
+      echo "Please enter your user name to upload files (set variable upload_username)"
+      error=1 
+    fi
+    if [ -z "${upload_password}" ]; then
+      echo "Please enter a password to upload files (set variable uploaf_password)"
+      error=1
     fi
     if [ -z "${upload_url}" ]; then
       upload_url=${DEFAULT_UPLOAD_URL}
     fi
-    ${mysqldump_cmd} ${mysqldump_flags} > "${backup_name}${mysqldump_suffix}" && \
-    ${compress_cmd} ${compress_flags} "${backup_name}${compress_suffix}" "${backup_files}" "${backup_name}${mysqldump_suffix}" && \
-    ${crypt_cmd} ${crypt_flags} -in "${backup_name}${compress_suffix}" -out "${backup_name}${crypt_suffix}" -k "${crypt_password}" && \
-    ${upload_cmd} ${upload_flags} "${backup_name}${crypt_suffix}" ${upload_url} && \
-    rm -f "${backup_name}${crypt_suffix}" "${backup_name}${compress_suffix}" "${backup_name}${mysqldump_suffix}"
+    if [ ${error} -eq 1 ]; then
+      exit 1
+    fi 
+    db_dump="${backup_name}${mysqldump_suffix}"
+    backup="${backup_name}${compress_suffix}"
+    backup_crypt="${backup_name}${crypt_suffix}"
+    "${mysqldump_cmd}" ${mysqldump_flags} > "${db_dump}" && \
+    "${compress_cmd}" ${compress_flags} "${backup}" "${backup_dir}" "${db_dump}" && \
+    "${crypt_cmd}" ${crypt_flags} -in "${backup}" -out "${backup_crypt}" -k "${crypt_password}" && \
+    "${upload_cmd}" ${upload_extra_flags} -u"${upload_username}":"${upload_password}" -T "${backup_crypt}" ${upload_url} && \
+    rm -f "${backup_crypt}" "${backup}" "${db_dump}"
   else
-    echo "File ${config} not found"
+    echo "File ${config} not exist or not read"
   fi
 done
 exit 0

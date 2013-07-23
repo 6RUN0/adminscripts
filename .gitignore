@@ -1,1 +1,8 @@
 *~
+
+*.tar.gz
+*.tar.bz
+*.zip
+*.7z
+
+*.exe
