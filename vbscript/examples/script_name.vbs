@@ -1,0 +1,1 @@
+MsgBox WScript.ScriptName

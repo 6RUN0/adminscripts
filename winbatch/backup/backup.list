@@ -1,0 +1,60 @@
+# Выполнение произвольной команды.
+# Пример:
+#exec taskkill /im cbmain.ex /t
+
+# Бекап БД
+#backup_mssql|<имя_резервной_копии>|<имяпользователя>:<пароль>@<имя сервера>/<имя БД>
+# Пример:
+#backup_mssql|backup_name1|username:password@dbserver/dbname
+
+# Очистка журнала транзакций
+#clear_trn|<имя файла транзакций>|<имя пользователя>:<пароль>@<имя сервера>/<имя БД>
+# Пример:
+#clear_trn|transaction_name|username:password@dbserver/dbname
+
+# Сокращает размер файлов данных и файлов журнала в указанной базе данных
+#shrinkdatabase_mssql|<имя пользователя>:<пароль>@<имя сервера>/<имя БД>
+# Пример:
+#shrinkdatabase_mssql|username:password@dbserver/dbname
+
+# Проверка целостности БД
+#checkdatabase_mssql|<имя пользователя>:<пароль>@<имя сервера>/<имя БД>
+# Пример:
+#checkdatabase_mssql|username:password@dbserver/dbname
+
+# Обслуживание БД
+# Проверяет и сжимает БД
+#maintenance_mssql|<имя пользователя>:<пароль>@<имя сервера>/<имя БД>
+# Пример:
+#maintenance_mssql|username:password@dbserver/dbname
+
+# Бекап файлов.
+# Простое сжатие файлов.
+#backup_file|<имя_резервной_копии>|<список файлов и(или) директорий>
+# Примеры:
+#backup_file|backup_name2| "path\to\file1" "path\to\file2" "path\to\dir0\"
+#backup_file|backup_name3| "path\to\dir1\" "path\to\dir2\"
+
+# Бекап состояния системы.
+# Скрипт делает резервную копию состояния системы с помощью утилиты
+# ntbackup и сжимает её с архиватором.
+# Указывать абсолютный путь до bks файла.
+#backup_ntbakup|<имя_резервной_копии>|<абсолютный\путь\до\резервной\копии>
+# Примеры:
+#backup_ntbakup|backup_name4|C:\path\to\systemstate.bks
+
+# Удаление старых бекапов
+# Указывается количество сохраненных бекапов
+#delete_old|<имя_резервной_копии>|<количество сохраненных бекапов>
+# Примеры:
+#delete_old|backup_name2|5
+#delete_old|backup_name3|3
+#delete_old|backup_name4|2
+
+# Создание отчёта.
+# Отчет содержит листинги всех зеркал.
+# В конце пути обратный слэш не ставить.
+#make_report|<имя_отчёта>|<путь\до\директории\с\отчётами>
+# Примеры:
+#make_report|name_report|\\server1\report_dir
+#make_report|name_report|c:\report_dir
