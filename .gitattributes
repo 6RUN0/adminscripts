@@ -1,0 +1,3 @@
+*.vbs encoding=cp1251
+*.bat encoding=cp866
+
