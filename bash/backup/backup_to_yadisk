@@ -2,10 +2,8 @@
 
 ##
 # Default options
-log="/var/log/${0}.log"
-pid="/var/run/${0}.pid"
-
 backup_name="backup-`hostname`"
+work_dir="./"
 
 compress_cmd="`which tar`"
 compress_flags="-czf"
@@ -17,7 +15,6 @@ mysql_backup_suffix=".sql"
 
 encrypt_cmd="`which openssl`"
 encrypt_suffix=".dat"
-encrypt_flags="enc -aes-256-cbc -e"
 
 split_cmd="`which split`"
 # minidvd size
@@ -25,59 +22,86 @@ split_size="1360M"
 split_suffix_length=3
 
 upload_cmd="`which curl`"
-upload_url="https://webdav.yandex.ru"
 
 help() {
 cat <<EOF
-usage: ${0} config
-       ${0} config1 config2 ... configN
-       ${0} *.conf?g
+usage: ${0} [config_file]
 
-example config:
+config variables:
 
-#   variable          ##  default value
-                      #
-backup_dir=           # not set
-backup_name=          # ${backup_name}
+#   variable           ##  default value
 
-# see tar(1)
-compress=             # not set
-compress_cmd=         # ${compress_cmd}
-compress_flags=       # ${compress_flags}
-compress_suffix=      # ${compress_suffix}
+work_dir=              # ${work_dir}
+backup_name=           # ${backup_name}
 
+# Create mysqldump
 # see mysqldump(1)
-mysql_backup=         # not set 
-mysql_backup_cmd=     # ${mysql_backup_cmd}
-mysql_backup_flags=   # ${mysql_backup_flags}
-mysql_backup_suffix=  # ${mysql_backup_suffix}
+mysql_backup=          # not set 
+mysql_backup_cmd=      # ${mysql_backup_cmd}
+mysql_backup_suffix=   # ${mysql_backup_suffix}
+mysql_backup_flags=    # ${mysql_backup_flags}
+mysql_backup_flags_1=  #
+mysql_backup_flags_2=  #
+...                    #
+mysql_backup_flags_n=  #
+mysql_backup_name=     # ${backup_name}${mysql_backup_suffix}
+mysql_backup_name_1=   # ${backup_name}_1${mysql_backup_suffix}
+mysql_backup_name_2=   # ${backup_name}_2${mysql_backup_suffix}
+...                    #
+mysql_backup_name_n=   # ${backup_name}_n${mysql_backup_suffix}
 
+# Compress file
+# see tar(1)
+compress_cmd=          # ${compress_cmd}
+compress_flags=        # ${compress_flags}
+compress_suffix=       # ${compress_suffix}
+compress_files=        # not set
+compress_file=         # not set
+compress_file_1=       #
+compress_file_2=       #
+...                    #
+compress_file_n=       #
+
+# Encryprion file with openssl
 # see openssl(1)
-encrypt=              # not set
-encrypt_cmd=          # ${encrypt_cmd}
-encrypt_suffix=       # ${encrypt_suffix}
-encrypt_password=     # requre *
-encrypt_flags=        # ${encrypt_flags}
+encrypt=               # not set
+encrypt_cmd=           # ${encrypt_cmd}
+encrypt_suffix=        # ${encrypt_suffix}
+encrypt_password=      # requre *
 
+# Split file
 # see split(1)
-split=                # not set
-split_cmd=            # ${split_cmd}
-split_size=           # ${split_size}
-split_suffix_length=  # ${split_suffix_length} 
+split=                 # not set
+split_cmd=             # ${split_cmd}
+split_size=            # ${split_size}
+split_suffix_length=   # ${split_suffix_length} 
 
-# see curl(1)
-upload_cmd=           # ${upload_cmd}
-upload_extra_flags=   # not set
-upload_username=      # requre *
-upload_password=      # requre *
-upload_url=           # ${upload_url}
-
-clean=                # not set
+# Copy backup to destination directory
+copy=                  # not set
+dest_dir=              # requre *
+dest_dir_1=            #
+dest_dir_2=            #
+...                    #
+dest_dir_n =           #
+                       #
+upload=                #
+upload_cmd=            # ${upload_cmd}
+upload_url=            # requre *
+upload_url_1=          # 
+upload_url_2=          #
+...                    #
+upload_url_n=          # 
+upload_user=           # requre *
+upload_user_1=         #
+upload_user_2=         #
+...                    #
+upload_user_n=         #
+upload_password=       # requre *
+upload_password_1=     #
+upload_password_2=     #
+...                    #
+upload_password_n=     #
 EOF
-}
-
-log() {
-  echo `date "+[%Y-%M-%d %H:%m:%S]"` ${@} >> "${log}"
 }
 
 if [ $# -eq 0 ]; then
@@ -85,183 +109,167 @@ if [ $# -eq 0 ]; then
   exit 1
 fi
 
-if [ -f "${pid}" ]; then
-  log "${0} is already running"
+config="${1}"
+if [ -r "${config}" ]; then
+  . "${config}"
+else
+  echo "File \"${config}\" not exist or not read"
   exit 1
 fi
 
-echo $$ > "${pid}"
+##
+# "Constants"
+DELIMITER=";"
+ORIG_IFS="${IFS}"
 
-for config in "${@}"; do
-  if [ -r "${config}" ]; then
-    
-    mysql_backup=
-    compress=
-    encrypt=
-    split=
-    upload=
+[ ! -d "${work_dir}" ] && mkdir -v -p "${work_dir}"
+[ -d "${work_dir}" ] && cd "${work_dir}"
 
-    log "\"Read\" config \"${config}\"."    
-    . "${config}"
-    
-    mysql_backup_err=
-    compress_err=
-    encrypt_err=
-    split_err=
-    
-    case ${mysql_backup} in
-      [Yy][Ee][Ss])
-        if [ -x "${mysql_backup_cmd}" ]; then
-          mysql_backup_file="${backup_name}${mysql_backup_suffix}"
-          log "Create MySQL dump: \"${mysql_backup_file}\""
-          "${mysql_backup_cmd}" ${mysql_backup_flags} > "${mysql_backup_file}" 2>> "${log}" \
-            || \
-            mysql_backup_err=1
+case ${mysql_backup} in
+  [Yy][Ee][Ss])
+    if [ -x "${mysql_backup_cmd}" ]; then
+      mysql_backup_flags_item="${mysql_backup_flags}"
+      [ -z "${mysql_backup_name}" ] && mysql_backup_name="${backup_name}"
+      mysql_backup_file_item="${mysql_backup_name}${mysql_backup_suffix}"
+      mysqldump_files=""
+      i=0
+      while [ ! -z "${mysql_backup_flags_item}" ]; do
+        echo "Create mysqldump \"${mysql_backup_file_item}\""
+        "${mysql_backup_cmd}" ${mysql_backup_flags_item} > "${mysql_backup_file_item}" && \
+          mysqldump_files="${mysqldump_files}${mysql_backup_file_item}${DELIMITER}"
+        i=$((i+1))
+        eval mysql_backup_flags_item="\$mysql_backup_flags_${i}"
+        eval mysql_backup_file_item="\$mysql_backup_name_${i}"
+        if [ -z "${mysql_backup_file_item}" ]; then
+          mysql_backup_file_item="${mysql_backup_name}${mysql_backup_suffix}_${i}"
         else
-          log "Error. File \"${mysql_backup_cmd}\" not exist or not execute"
-          mysql_backup_err=1
+          mysql_backup_file_item="${mysql_backup_file_item}${mysql_backup_suffix}"
         fi
-        if [ -z "${mysql_backup_err}" ]; then
-          backup="${mysql_backup_file}"
-        else
-          log "Error. Mysql backup not create. Skip ..."
-          mysql_backup_file=
-        fi
-      ;;
-    esac
+      done
+    else
+      echo "Error. File \"${mysql_backup_cmd}\" not exist or not execute"
+      exit 1
+    fi
+  ;;
+esac
 
-    case ${compress} in
-      [Yy][Ee][Ss])
-        if [ -x "${compress_cmd}" ]; then
-          compress_backup_file="${backup_name}${compress_suffix}"
-          if [ -d "${backup_dir}" -a ! -z "${backup}" ]; then
-            log "Create a archive [${compress_backup_file}] containing the items [${backup_dir} ${backup}]."
-            "${compress_cmd}" ${compress_flags} "${compress_backup_file}" "${backup_dir}" "${backup}" >> "${log}" 2>&1 \
-              || \
-              compress_err=1
-          elif [ -d "${backup_dir}" -a -z "${backup}" ]; then
-            log "Create a archive [${compress_backup_file}] containing the items [${backup_dir}]."
-            "${compress_cmd}" ${compress_flags} "${compress_backup_file}" "${backup_dir}" >> "${log}" 2>&1 \
-              || \
-              compress_err=1
-          elif [ ! -d "${backup_dir}" -a ! -z "${backup}" ]; then
-            log "Create a archive [${compress_backup_file}] containing the items [${backup}]."
-            "${compress_cmd}" ${compress_flags} "${compress_backup_file}" "${backup}" >> "${log}" 2>&1 \
-              || \
-              compress_err=1
-          else
-            log "Error. There is nothing to compress."            
-            log "Please set variable backup_dir or mysql_backup_file."
-            compress_err=1
-          fi
-        else
-          log "Error. File \"${compress_cmd}\" not exist or not execute"
-          compress_err=1
-        fi
-        if [ -z "${compress_err}" ]; then
-          backup="${compress_backup_file}"
-        else
-          log "Error. Compress the files could not be. Skip ..."
-          compress_backup_file=
-        fi
-      ;;
-    esac
+compress_files="${compress_files}${mysqldump_files}"
+compress_file_item="${compress_file}"
+i=0
+while [ ! -z "${compress_file_item}" ]; do
+  [ -d "${compress_file_item}" -o -f "${compress_file_item}" ] && \
+    compress_files="${compress_files}${compress_file_item}${DELIMITER}"
+  i=$((i+1))
+  eval compress_file_item="\$compress_file_${i}"
+done  
+if [ -z "${compress_files}" ]; then
+  echo "Error. There is nothing to compress."            
+  exit 1
+fi
+if [ ! -x "${compress_cmd}" ]; then
+  echo "Error. File \"${compress_cmd}\" not exist or not execute"
+  exit 1
+fi
+backup_file="${backup_name}${compress_suffix}"
+echo "Create a archive \"${backup_file}\""
+IFS="${DELIMITER}"
+"${compress_cmd}" ${compress_flags} "${backup_file}" ${compress_files}
+IFS="${ORIG_IFS}"
+if [ ! -f "${backup_file}" ]; then
+  echo "Error. Archive not create."
+  exit 1
+fi
+if [ ! -z "${mysqldump_files}" ]; then
+  echo "Delete mysqldump file(s):"
+  IFS="${DELIMITER}"
+  rm -f -v ${mysqldump_files}  
+  IFS="${ORIG_IFS}"
+fi
 
-    case ${encrypt} in
-      [Yy][Ee][Ss])
-        if [ -z "${encrypt_password}" ]; then
-          log "Please enter a password to encrypt files (set variable encrypt_password)"
-          encrypt_err=1
-        fi
-        if [ -z "${backup}" ]; then
-          log "Error. There is nothing to encrypt."
-          encrypt_err=1
-        fi
-        if [ -z "${encrypt_err}" ]; then
-          if [ -x "${encrypt_cmd}" ]; then
-            encrypt_file="${backup_name}${encrypt_suffix}"
-            log "Encrypt file \"${backup}\"."
-            "${encrypt_cmd}" ${encrypt_flags} -in "${backup}" -out "${encrypt_file}" -k "${encrypt_password}" >> "${log}" 2>&1\
-              || \
-              encrypt_err=1
-          else
-            log "Error. File \"${encrypt_cmd}\" not exits or not execute"
-            encrypt_err=1
-          fi
-        fi
-        if [ -z "${encrypt_err}" ]; then
-          backup="${encrypt_file}"
-        else
-          log "Error. Encrypting files failed. Skip ..."
-          encrypt_file=
-        fi
-      ;;
-    esac
+case ${encrypt} in
+  [Yy][Ee][Ss])
+    if [ -z "${encrypt_password}" ]; then
+      echo "Please enter a password to encrypt files (set variable encrypt_password)"
+      exit 1
+    fi
+    if [ ! -x "${encrypt_cmd}" ]; then
+      echo "Error. File \"${encrypt_cmd}\" not exits or not execute"
+      exit 1
+    fi
+    encrypt_backup_file="${backup_name}${encrypt_suffix}"
+    echo "Encrypt file \"${backup_file}\""
+    "${encrypt_cmd}" enc -aes-256-cbc -e -in "${backup_file}" -out "${encrypt_backup_file}" -k "${encrypt_password}" \
+    || exit 1
+    echo "Delete archive file(s):"
+    rm -f -v "${backup_file}"
+    backup_file="${encrypt_backup_file}"
+  ;;
+esac
 
-    case ${split} in
-      [Yy][Ee][Ss])
-        if [ ! -z "${backup}" ]; then
-          if [ -x "${split_cmd}" ]; then
-            log "Splitting a file \"${backup}\""
-            split_files="${backup}."
-            "${split_cmd}" -d -b ${split_size} -a ${split_suffix_length} "${backup}" "${split_files}" >> "${log}" 2>&1 \
-              || \
-              split_err=1
-          else
-            log "File \"${split_cmd}\" not exits or not execute"
-            split_err=1
-          fi
-        else
-          split_err=1
-        fi 
-        if [ -z "${split_err}" ]; then
-          backup="${split_files}*"
-        else
-          log "Error. Split file failed. Skip ..."
-        fi
-      ;;
-    esac
+case ${split} in
+  [Yy][Ee][Ss])
+    if [ ! -x "${split_cmd}" ]; then
+      echo "File \"${split_cmd}\" not exits or not execute"
+      exit 1
+    fi
+    echo "Splitting a file \"${backup_file}\""
+    split_files="${backup_file}."
+    "${split_cmd}" -d -b "${split_size}" -a ${split_suffix_length} "${backup_file}" "${split_files}" || split_err=1
+    if [ -z "${split_err}" ]; then
+      echo "Delete file(s):"
+      rm -f -v "${backup_file}"
+      backup_file="${split_files}"
+    fi
+  ;;
+esac
 
-    case ${upload} in
-      [Yy][Ee][Ss])
-        if [ -z "${upload_username}" ]; then
-          log "Please enter your user name to upload files (set variable upload_username)"
-          upload_err=1
-        fi
-        if [ -z "${upload_password}" ]; then
-          log "Please enter a password to upload files (set variable uploaf_password)"
-          upload_err=1
-        fi
-        if [ -x "${upload_cmd}" -a -z "${uplad_err}" ]; then
-          for upload_file in ${backup}; do
-            log "Uploading a file \"${upload_file}\""
-            "${upload_cmd}" ${upload_extra_flags} -u"${upload_username}":"${upload_password}" -T "${upload_file}" ${upload_url} >> "${log}" 2>&1 \
-              || \
-              upload_err=1
-          done
-        else
-          log "File \"${upload_cmd}\" not found or not execute"
-          upload_err=1
-        fi 
-        if [ ! -z "${upload_err}" ]; then
-          log "Error. Upload file(s) failed. Skip ..."
-        fi
-      ;;
-      *)
-        clean=
-      ;;
-    esac
+case ${copy} in
+  [Yy][Ee][Ss])
+    dest_dir_item="${dest_dir}"
+    i=0
+    while [ ! -z "${dest_dir_item}" ]; do
+      if [ -d "${dest_dir_item}" ]; then
+        echo "Copy file(s):"
+        cp -v -f "${backup_file}"* "${dest_dir_item}"
+      else
+        echo "\"${dest_dir_item}\" is not directory"
+      fi
+      i=$((i+1))
+      eval dest_dir_item="\$dest_dir_${i}"
+    done
+  ;;
+esac
 
-    case ${clean} in
-      [Yy][Ee][Ss])
-        log "Delete file(s):"
-        rm -vf  "${mysql_backup_file}" "${compress_backup_file}" "${encrypt_file}" "${backup}" >> "${log}" 2>&1
-      ;;
-    esac
+case ${upload} in
+  [Yy][Ee][Ss])    
+    if [ ! -x "${upload_cmd}" ]; then
+      echo "File \"${upload_cmd}\" not found or not execute"
+      exit 1
+    fi
+    upload_user_item="${upload_user}"
+    upload_password_item="${upload_password}"
+    upload_url_item="${upload_url}"
+    upload_item="${upload_user_item}${upload_password_item}${upload_url_item}"
+    i=0
+    while [ ! -z "${upload_item}" ]; do
+      if [ ! -z "${upload_user_item}" -a ! -z "${upload_password_item}" -a ! -z "${upload_url_item}" ]; then
+        for file in "${backup_file}"*; do
+          echo "Upload \"${file}\" to \"${upload_url_item}\""
+          "${upload_cmd}" -u"${upload_user_item}":"${upload_password_item}" -T "${file}" "${upload_url_item}"
+        done
+      else
+        echo "Not specified username or password."
+      fi
+      i=$((i+1))
+      eval upload_url_item="\$upload_url_${i}"
+      eval upload_user_item="\$upload_user_${i}"
+      eval upload_password_item="\$upload_password_${i}"
+      upload_item="${upload_user_item}${upload_password_item}${upload_url_item}"
+    done
+  ;;
+esac
 
-  else
-    log "File ${config} not exist or not read"
-  fi
-done
-rm -f "${pid}"
-exit 0
+#case ${clean} in
+#  [Yy][Ee][Ss])
+#  ;;
+#esac

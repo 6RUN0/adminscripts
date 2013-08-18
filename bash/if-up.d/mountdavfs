@@ -1,0 +1,29 @@
+#!/bin/sh
+
+mountdavfs() {
+  if [ ! -x "`which mount.davfs`" ]; then
+    echo "mount.davfs not found"
+    return 1
+  fi
+
+  mount_cmd="`which mount`"
+  if [ ! -x "${mount_cmd}" ]; then
+    echo "mount not found"
+    return 1
+  fi
+
+  fstab="/etc/fstab"
+  if [ ! -r "${fstab}" ]; then
+    echo "\"${fstab}\" not found or not read"
+    return 1
+  fi
+
+  for mount_point in `awk '/^[[:blank:]]*[^#].*davfs/ {print $2}' ${fstab}`; do
+    [ ! -d "${mount_point}" ] && mkdir -p "${mount_point}"
+    [ -d "${mount_point}" ] && "${mount_cmd}" "${mount_point}"
+  done
+
+  return 0
+}
+
+[ "$IFACE" != "lo" ] && mountdavfs
