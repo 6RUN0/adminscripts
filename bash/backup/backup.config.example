@@ -1,0 +1,51 @@
+# this is a comment
+
+work_dir="/tmp/b a c k u p"
+backup_name=" test  backup   n a m e"
+#backup_name="`hostname`-`uname -o`"
+
+mysql_backup="yes"
+mysql_backup_suffix=" . s q l "
+#mysql_backup_suffix="-`date +"%Y-%m-%d"`.sql"
+mysql_backup_flags="--opt -u user -ppassword database"
+mysql_backup_flags_1="--opt -u user1 -ppassword1 database1"
+mysql_backup_flags_2="--opt -u user2 -ppassword2 database2"
+mysql_backup_flags_3="--opt -u user3 -ppassword3 database3"
+mysql_backup_flags_4="--opt -u user4 -ppassword4 database4"
+
+mysql_backup_name="backup  d a t a b a s e"
+mysql_backup_name_1="backup database1"
+mysql_backup_name_2=" back up data base 2 "
+mysql_backup_name_3="___backup___database  3"
+mysql_backup_name_4=" b a c k u p database-----4"
+
+compress_flags="-czvf"
+#               |<file(dir)name>| |<-- file or directory name -->| |<-file(dir) name ->|      
+compress_files="/tmp/backup_file0;/tmp/  b a c k u p _ f i l e 1  ;/tmp/back u p _ file2;"
+#                        requre ~^                        requre ~^             requre ~^
+compress_file="/tmp/f i l e   o r   d i r e c t o r y  3"
+compress_file_1="/tmp/ file or directory 4 "
+compress_file_2="/tmp/file or directory 5"
+
+encrypt="YeS"
+encrypt_suffix=" . d A t"
+encrypt_password="qwerty"
+
+split="yES"
+split_size="1G"
+
+copy="yeS"
+dest_dir="/tmp/d  e  s  t"
+dest_dir_1="/tmp/  dest"
+dest_dir_2="/tmp/dest  "
+
+upload="YES"
+upload_url="https://webdav.yandex.ru/"
+upload_url_1="https://webdav.yandex.ru/"
+upload_url_2="https://webdav.yandex.ru/"
+upload_user="user"
+upload_user_1="user1"
+upload_user_2="user2"
+upload_password="secret"
+upload_password_1="secret1"
+upload_password_2="secret2"
