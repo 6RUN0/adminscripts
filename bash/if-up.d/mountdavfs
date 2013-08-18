@@ -18,7 +18,7 @@ mountdavfs() {
     return 1
   fi
 
-  for mount_point in `awk '/^[[:blank:]]*[^#].*davfs/ {print $2}' ${fstab}`; do
+  for mount_point in `awk '/^[[:blank:]]*[^#].*[[:blank:]]davfs[[:blank:]]/ {print $2}' ${fstab}`; do
     [ ! -d "${mount_point}" ] && mkdir -p "${mount_point}"
     [ -d "${mount_point}" ] && "${mount_cmd}" "${mount_point}"
   done
