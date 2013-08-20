@@ -39,6 +39,13 @@ dest_dir="/tmp/d  e  s  t"
 dest_dir_1="/tmp/  dest"
 dest_dir_2="/tmp/dest  "
 
+secure_copy="yEs"
+secure_copy_dest="example.com:backup1/"
+secure_copy_dest_1="example.com:backup2/"
+secure_copy_flags_1="-i key1"
+secure_copy_dest_2="example.com:backup3/"
+secure_copy_flags_2="-P3333 -i key2"
+
 upload="YES"
 upload_url="https://webdav.yandex.ru/"
 upload_url_1="https://webdav.yandex.ru/"

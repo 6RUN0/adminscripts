@@ -21,6 +21,8 @@ split_cmd="`which split`"
 split_size="1360M"
 split_suffix_length=3
 
+secure_copy_cmd="`which scp`"
+
 upload_cmd="`which curl`"
 
 help() {
@@ -83,7 +85,23 @@ dest_dir_1=            #
 dest_dir_2=            #
 ...                    #
 dest_dir_n =           #
+
+# see scp(1)
+secure_copy=           # not set
+secure_copy_cmd=       # ${secure_copy_cmd}
+secure_copy_flags=     # not set
+secure_copy_flags_1=   #
+secure_copy_flags_2=   #
+...                    #
+secure_copy_flags_n=   #
                        #
+secure_copy_dest=      # requre *
+secure_copy_dest_1=    #
+secure_copy_dest_2=    #
+...                    #
+secure_copy_dest_n=    #
+
+# see curl(1)
 upload=                #
 upload_cmd=            # ${upload_cmd}
 upload_url=            # requre *
@@ -105,7 +123,7 @@ EOF
 }
 
 if [ $# -eq 0 ]; then
-  help
+  help | less || help | more || help
   exit 1
 fi
 
@@ -236,6 +254,24 @@ case ${copy} in
       fi
       i=$((i+1))
       eval dest_dir_item="\$dest_dir_${i}"
+    done
+  ;;
+esac
+
+case ${secure_copy} in
+  [Yy][Ee][Ss])
+    if [ ! -x "${secure_copy_cmd}" ]; then
+      echo "File \"${secure_copy_cmd}\" not found or not execute"
+      exit 1
+    fi
+    secure_copy_dest_item="${secure_copy_dest}"
+    secure_copy_flags_item="${secure_copy_flags}"
+    i=0
+    while [ ! -z "${secure_copy_dest_item}" ]; do
+      "${secure_copy_cmd}" ${secure_copy_flags_item} "${backup_file}"* ${secure_copy_dest_item}
+      i=$((i+1))
+      eval secure_copy_flags_item="\$secure_copy_flags_${i}"
+      eval secure_copy_dest_item="\$secure_copy_dest_${i}"
     done
   ;;
 esac
