@@ -5,4 +5,4 @@ backup="/root/bin/backup"
 backup_config="/root/etc/backup.conf"
 backup_log="/var/log/backup.log"
 
-59 2 * * * "${backup}" "${backup_config}" > "${backup_log}" 2>&1
+59 2 * * * "${backup}" "${backup_config}" >> "${backup_log}" 2>&1

@@ -47,6 +47,7 @@ secure_copy_dest_2="example.com:backup3/"
 secure_copy_flags_2="-P3333 -i key2"
 
 upload="YES"
+upload_extra_flags="-k"
 upload_url="https://webdav.yandex.ru/"
 upload_url_1="https://webdav.yandex.ru/"
 upload_url_2="https://webdav.yandex.ru/"
@@ -57,5 +58,8 @@ upload_password="secret"
 upload_password_1="secret1"
 upload_password_2="secret2"
 
+# FreeBSD
 delete_old=7d # n[smhdw]
 #delete_old=1w
+# Linux
+#delete_old=7

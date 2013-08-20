@@ -119,6 +119,11 @@ upload_password_1=     #
 upload_password_2=     #
 ...                    #
 upload_password_n=     #
+upload_extra_flags=    # not set
+upload_extra_flags_1=  #
+upload_extra_flags_2=  #
+...                    #
+upload_extra_flags_3=  #
 
 # see find(1)
 # !!! if define then delete all old files in work_dir
@@ -144,8 +149,11 @@ fi
 DELIMITER=";"
 ORIG_IFS="${IFS}"
 
-[ ! -d "${work_dir}" ] && mkdir -v -p "${work_dir}" || work_dir="./"
+if [ ! -d "${work_dir}" ]; then 
+  mkdir -v -p "${work_dir}" || work_dir="./"
+fi
 [ -d "${work_dir}" ] && cd "${work_dir}"
+
 case ${mysql_backup} in
   [Yy][Ee][Ss])
     if [ -x "${mysql_backup_cmd}" ]; then
@@ -288,13 +296,14 @@ case ${upload} in
     upload_user_item="${upload_user}"
     upload_password_item="${upload_password}"
     upload_url_item="${upload_url}"
+    upload_extra_flags_item="${upload_extra_flags}"
     upload_item="${upload_user_item}${upload_password_item}${upload_url_item}"
     i=0
     while [ ! -z "${upload_item}" ]; do
       if [ ! -z "${upload_user_item}" -a ! -z "${upload_password_item}" -a ! -z "${upload_url_item}" ]; then
         for file in "${backup_file}"*; do
           echo "Upload \"${file}\" to \"${upload_url_item}\""
-          "${upload_cmd}" -u"${upload_user_item}":"${upload_password_item}" -T "${file}" "${upload_url_item}"
+          "${upload_cmd}" ${upload_extra_flags_item} -u"${upload_user_item}":"${upload_password_item}" -T "${file}" "${upload_url_item}"
         done
       else
         echo "Not specified username or password."
@@ -303,12 +312,19 @@ case ${upload} in
       eval upload_url_item="\$upload_url_${i}"
       eval upload_user_item="\$upload_user_${i}"
       eval upload_password_item="\$upload_password_${i}"
+      eval upload_extra_flags_item="\$upload_extra_flags_${1}"
+      [ -z "${upload_extra_flags_item}" ] && upload_extra_flags_item="${upload_extra_flags}"
       upload_item="${upload_user_item}${upload_password_item}${upload_url_item}"
     done
   ;;
 esac
 
 if [ ! -z "${delete_old}" ]; then
-  echo "Delete old backup:"
-  find "${work_dir}" -mtime +${delete_old} -print -delete
+  if [ ${work_dir} == "./" ]; then
+    echo "Please use specific work directory"
+    echo "Old backups not delete"
+  else
+    echo "Delete old backup:"
+    find "${work_dir}" -mtime +${delete_old} -print -delete
+  fi
 fi
