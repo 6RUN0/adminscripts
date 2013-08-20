@@ -119,6 +119,10 @@ upload_password_1=     #
 upload_password_2=     #
 ...                    #
 upload_password_n=     #
+
+# see find(1)
+# !!! if define then delete all old files in work_dir
+delete_old=            # not set
 EOF
 }
 
@@ -140,9 +144,8 @@ fi
 DELIMITER=";"
 ORIG_IFS="${IFS}"
 
-[ ! -d "${work_dir}" ] && mkdir -v -p "${work_dir}"
+[ ! -d "${work_dir}" ] && mkdir -v -p "${work_dir}" || work_dir="./"
 [ -d "${work_dir}" ] && cd "${work_dir}"
-
 case ${mysql_backup} in
   [Yy][Ee][Ss])
     if [ -x "${mysql_backup_cmd}" ]; then
@@ -305,7 +308,7 @@ case ${upload} in
   ;;
 esac
 
-#case ${clean} in
-#  [Yy][Ee][Ss])
-#  ;;
-#esac
+if [ ! -z "${delete_old}" ]; then
+  echo "Delete old backup:"
+  find "${work_dir}" -mtime +${delete_old} -print -delete
+fi

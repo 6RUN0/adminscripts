@@ -1,8 +1,8 @@
 # this is a comment
 
 work_dir="/tmp/b a c k u p"
-backup_name=" test  backup   n a m e"
-#backup_name="`hostname`-`uname -o`"
+backup_name=" test  backup   n a m e `date +"%s"`"
+#backup_name="`hostname`-`uname -o`-`date +"%s"`"
 
 mysql_backup="yes"
 mysql_backup_suffix=" . s q l "
@@ -56,3 +56,6 @@ upload_user_2="user2"
 upload_password="secret"
 upload_password_1="secret1"
 upload_password_2="secret2"
+
+delete_old=7d # n[smhdw]
+#delete_old=1w
