@@ -1,0 +1,279 @@
+#!/bin/sh
+#
+# Yandex.Server control script.
+#
+# The exit codes returned are:
+#	0 - operation completed successfully
+#	1 - usage error
+#       2 - program 'yandex' does not exist or is not executable
+#       3 - config file is not found
+#       4 - Yandex could not be started
+#       5 - Yandex could not be stopped
+#	6 - Yandex could not make new index
+#	7 - Yandex is not running
+#	8 - Cannot start search
+#	9 - Cannot stop search
+#	10 - Cannot get collection status
+###
+
+################## start configuration section #####################
+# additional libraries
+export LD_LIBRARY_PATH=/usr/local/share/yandex/lib:/usr/local/lib:/usr/local/lib64:$LD_LIBRARY_PATH
+
+# the path to Yandex binary
+YANDEX=/usr/local/sbin/yandex-server
+
+# Yandex port
+PORT=${PORT:=17000}
+
+# If you use autorization for access to admin-mode you must edit
+# the next line
+#AUTH=login:password
+NET_LOC=localhost:$PORT
+
+# the documents collection name
+COLLECTION_NAME=${COLLECTION_NAME:=""}
+
+# Yandex options
+YANDEX_OPT="-p $PORT"
+
+# the path to the config file
+CONFIG_FILE=${CONFIG_FILE:=/usr/local/etc/yandex/yandex.cfg}
+
+# a command that can work as an HTTP client, so that it can send request
+# to the Yandex.Server. Designed for wget or lynx or fetch, however other
+# programs may work.
+if which wget >/dev/null 2>&1; then
+    HTTP_REQUEST_COMMAND="wget -O -"
+    test X$AUTH != X && NET_LOC=$AUTH@$NET_LOC
+elif which lynx >/dev/null 2>&1; then
+    HTTP_REQUEST_COMMAND="lynx -dump"
+    test X$AUTH != X && HTTP_REQUEST_COMMAND="$HTTP_REQUEST_COMMAND -auth=$AUTH"
+elif which fetch >/dev/null 2>&1; then
+    HTTP_REQUEST_COMMAND="fetch -o /dev/stdout"
+    test X$AUTH != X && NET_LOC=$AUTH@$NET_LOC
+else
+    echo "$0: Error: Can't find 'wget' or 'lynx' or 'fetch' and can't send HTTP-request to the Yandex.Server."
+    exit 1
+fi
+################## end configuration section ######################
+
+RETVAL=0
+#################### start functions description ##################
+# Try to send HTTP-query to Yandex.Server
+###
+do_query() {
+    if [ X$verbose = X ]; then
+	$HTTP_REQUEST_COMMAND $* >/dev/null 2>&1
+    else
+	#echo "command: $HTTP_REQUEST_COMMAND $* >/dev/null"
+	$HTTP_REQUEST_COMMAND $* >/dev/null
+    fi
+}
+
+#####################
+# Start Yandex.Server
+###
+start_yandex() {
+    echo "Starting Yandex.Server ($YANDEX)"
+    ERROR_PREF="$0 start: error: cannot start Yandex.Server"
+    if [ $RUNNING -eq 1 ]; then
+	echo "$ERROR_PREF: $STATUS"
+	RETVAL=4
+    elif [ ! -x $YANDEX ]; then
+	echo "$ERROR_PREF: $YANDEX does not exist or is not executable."
+	RETVAL=2
+    elif [ ! -f $CONFIG_FILE ]; then
+	echo "$ERROR_PREF: $CONFIG_FILE is not found."
+	RETVAL=3
+    else
+	$YANDEX $YANDEX_OPT $CONFIG_FILE
+	if [ $? -ne 0 ]; then
+	    echo "$0 start: error: cannot run $YANDEX."
+	    echo "Try to find error description in  /var/local/yandex/yandex.log"
+	    RETVAL=4
+	fi
+    fi
+}
+
+#####################
+# Stop Yandex.Server
+###
+stop_yandex() {
+    echo "Stopping Yandex.Server ($YANDEX)"
+    ERROR_PREF="$0 stop: error"
+    if [ $RUNNING -eq 0 ]; then
+	echo "$ERROR_PREF: $STATUS"
+	RETVAL=5
+    else
+	if do_query "http://$NET_LOC/admin?action=shutdown"; then
+	    RUNNING=0
+	else
+	    echo "$ERROR_PREF: $YANDEX could not be stopped"
+	    RETVAL=5
+	fi
+    fi
+}
+
+#####################
+# Only search start
+###
+search_start() {
+    echo "Starting search"
+    ERROR_PREF="$0: start search: error"
+    if [ $RUNNING -eq 0 ]; then
+	echo "$ERROR_PREF: $STATUS"
+	RETVAL=7
+    elif collection_status | grep Searching >/dev/null; then
+        echo "$ERROR_PREF: search already started"
+        RETVAL=8
+    elif ! do_query "http://$NET_LOC/admin?id=$COLLECTION_NAME&action=startsearch&brief=yes"; then
+	echo "$ERROR_PREF: cannot start search"
+	RETVAL=8
+    fi
+}
+
+#####################
+# Only search stop
+###
+search_stop() {
+    echo "Stopping search"
+    ERROR_PREF="$0: stop search: error"
+    if [ $RUNNING -eq 0 ]; then
+	echo "$ERROR_PREF: $STATUS"
+	RETVAL=7
+    elif ! collection_status | grep Searching >/dev/null; then
+        echo "$ERROR_PREF: search already stopped"
+        RETVAL=8
+    elif ! do_query "http://$NET_LOC/admin?id=$COLLECTION_NAME&action=stopsearch&brief=yes"; then
+	echo "$ERROR_PREF: cannot stop search"
+	RETVAL=9
+    fi
+}
+
+#####################
+# Get collection status
+###
+collection_status() {
+    echo "Collection '$COLLECTION_NAME' status:"
+    ERROR_PREF="$0: error"
+    if [ $RUNNING -eq 0 ]; then
+	echo "$ERROR_PREF: $STATUS"
+	RETVAL=7
+    else
+	if ! $HTTP_REQUEST_COMMAND "http://$NET_LOC/admin?id=$COLLECTION_NAME&action=status&brief=yes" 2>/dev/null; then
+	    echo "$ERROR_PREF: cannot get collection '$COLLECTION_NAME' status."
+	    RETVAL=10
+	fi
+    fi
+}
+
+#####################
+# Start indexing
+###
+reindex() {
+    ERROR_PREF="$0 reindex: error: cannot start indexing"
+    if [ $RUNNING -eq 0 ]; then
+        # Yandex.Server is not running. Try start.
+        start_yandex
+        sleep 5
+        get_yandex_status
+        if [ $RUNNING -eq 0 ]; then
+            echo "$ERROR_PREF: $STATUS"
+            RETVAL=7
+            return $RETVAL
+        fi
+    fi
+    do_query "http://$NET_LOC/admin?id=$COLLECTION_NAME&action=bi&brief=yes"
+    retCode=$?
+    if [ "X$retCode" != "X0" ]; then
+        echo "$0 reindex: error: cannot reindex"
+	RETVAL=6
+    fi
+}
+
+#####################
+# Get status
+###
+get_yandex_status() {
+    if do_query "http://$NET_LOC/admin"; then
+	STATUS="$YANDEX is running"
+	RUNNING=1
+    else
+	STATUS="$YANDEX is not running"
+	RUNNING=0
+    fi
+}
+
+#################### end functions description ##################
+
+
+ARGV=$@
+if [ "X$ARGV" = "X" ]; then
+    ARGS="help"
+fi
+
+for ARG in $@ $ARGS
+do
+    get_yandex_status
+
+    case $ARG in
+    -v)
+	verbose=yes
+	;;
+    start)
+	start_yandex
+	;;
+    stop)
+	stop_yandex
+	;;
+    restart)
+	stop_yandex
+	sleep 2
+	start_yandex
+	;;
+    sstart)
+	search_start
+	;;
+    sstop)
+	search_stop
+	;;
+    srestart)
+	search_stop
+	sleep 1
+	search_start
+	;;
+    status)
+	echo "Yandex.Server: $STATUS"
+	if [ "$RUNNING" = "1" ]; then
+		exit 0
+	else
+		exit 1
+	fi
+	;;
+    reindex)
+	reindex
+	;;
+    cstatus)
+    	collection_status
+    	;;
+    *)
+	echo "Usage: $0 [-v] {start|stop|restart|status|reindex}"
+	cat <<EOF
+-v         - verbose mode
+start      - start yandex
+stop       - stop yandex
+restart    - restart yandex
+status     - print yandex status
+reindex    - start reindexing
+sstart     - start search
+sstop      - stop search
+srestart   - restart search
+cstatus    - print collection '$COLLECTION_NAME' status
+EOF
+	RETVAL=1
+	;;
+    esac
+done
+
+exit $RETVAL
