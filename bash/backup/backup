@@ -320,7 +320,7 @@ case ${upload} in
 esac
 
 if [ ! -z "${delete_old}" ]; then
-  if [ ${work_dir} == "./" ]; then
+  if [ "${work_dir}" == "./" ]; then
     echo "Please use specific work directory"
     echo "Old backups not delete"
   else
