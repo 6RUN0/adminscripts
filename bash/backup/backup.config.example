@@ -20,9 +20,15 @@ mysql_backup_name_3="___backup___database  3"
 mysql_backup_name_4=" b a c k u p database-----4"
 
 compress_flags="-czvf"
+# or
+#compress_flags="-c;-z;-v;-f"
+#         requre --^--^--^
+#compress_flags="-c;--lzma;-f"
+#         requre --^------^
+
 #               |<file(dir)name>| |<-- file or directory name -->| |<-file(dir) name ->|      
 compress_files="/tmp/backup_file0;/tmp/  b a c k u p _ f i l e 1  ;/tmp/back u p _ file2;"
-#                        requre ~^                        requre ~^             requre ~^
+#                       requre --^                       requre --^            requre --^
 compress_file="/tmp/f i l e   o r   d i r e c t o r y  3"
 compress_file_1="/tmp/ file or directory 4 "
 compress_file_2="/tmp/file or directory 5"
