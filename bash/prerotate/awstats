@@ -10,6 +10,9 @@ fi
 awstats_conf_prefix="${awstats_conf_prefix:="awstats."}"
 awstats_conf_suffix="${awstats_conf_suffix:=".conf"}"
 awstats_updateall="${awstats_updateall:="/var/www/awstats/tools/awstats_updateall.pl"}"
+awstats_buildstaticpages="${awstats_buildstaticpages:="/var/www/awstats/tools/awstats_buildstaticpages.pl"}"
+awstats_buildstaticpages_dir="${awstats_buildstaticpages_dir:=""}"
+awstats_buildstaticpages_diricons="${awstats_buildstaticpages_diricons:=""}"
 awstats_prog="${awstats_prog:="/var/www/awstats/wwwroot/cgi-bin/awstats.pl"}"
 awstats_url_prefix="${awstats_url_prefix:="/cgi-bin/awstats.pl?config="}"
 index_html="${index_html:="/var/www/awstats/wwwroot/index.html"}"
@@ -34,24 +37,38 @@ get_site_names() {
 }
 
 update_stats() {
-  if [ ! -x "${awstats_updateall}" ]; then
+  if [ -x "${awstats_updateall}" ]; then
+    "${awstats_updateall}" now -awstatsprog="${awstats_prog}" \
+      -configdir="${awstats_conf_dir}"
+  else
     echo "\"${awstats_updateall}\" not found or not execute"
-    exit 1
   fi
-  if [ ! -x "${awstats_prog}" ]; then
-    echo "\"${awstats_prog}\" not found or not execute"
-    exit 1
+}
+
+# $1 - config
+build_static_pages() {
+  if [ -x "${awstats_buildstaticpages}" ]; then
+    "${awstats_buildstaticpages}" -config="${1}" \
+      -awstatsprog="${awstats_prog}" \
+      -dir="${awstats_buildstaticpages_dir}" \
+      -diricons="${awstats_buildstaticpages_diricons}"
+  else
+    echo "\"${awstats_buildstaticpages}\" not found or not execute"
   fi
-  if [ ! -d "${awstats_conf_dir}" ]; then
-    echo "\"${awstats_conf_dir}\" in not directory"
-    exit 1
-  fi
-  "${awstats_updateall}" now -awstatsprog="${awstats_prog}" -configdir="${awstats_conf_dir}"
 }
 
 #index_html="index.html"
 #test_dir="fd/dfs/sdf/"
 #test_me
+
+if [ ! -x "${awstats_prog}" ]; then
+  echo "\"${awstats_prog}\" not found or not execute"
+  exit 1
+fi
+if [ ! -d "${awstats_conf_dir}" ]; then
+  echo "\"${awstats_conf_dir}\" in not directory"
+  exit 1
+fi
 
 update_stats
 
@@ -68,6 +85,7 @@ EOL
 
 echo "<ul>" >> "${index_html}"
 for site_name in `get_site_names`; do
+  [ -d "${awstats_buildstaticpages_dir}" ] && build_static_pages "${site_name}"
   echo "<li><a href=\"${awstats_url_prefix}${site_name}\" title=\"Statistics for ${site_name}\">${site_name}</a></li>" >> "${index_html}"
 done
 echo "</ul>" >> "${index_html}"
