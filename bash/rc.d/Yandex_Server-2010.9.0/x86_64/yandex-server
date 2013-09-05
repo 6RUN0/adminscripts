@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: yandex-server.sh,v 1.6 2013/08/12 11:18:27 root Exp root $
+# $Id: yandex-server.sh,v 1.7 2013/08/30 12:51:01 root Exp root $
 
 ### BEGIN INIT INFO
 # Provides:          yandex-server
@@ -241,6 +241,7 @@ reindex() {
     fi
   fi
   for collection in ${collections}; do
+    echo "Collection ${collection} reindex start."
     do_query "http://${net_loc}/admin?id=${collection}&action=bi&brief=yes"
     if [ ${?} -ne 0 ]; then
       echo "${0} reindex: error: cannot reindex"
